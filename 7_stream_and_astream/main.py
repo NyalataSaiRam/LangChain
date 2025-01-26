@@ -3,6 +3,7 @@ from langgraph.graph import StateGraph, START, END
 from classes import State
 from nodes import call_model, summarize_conversation, should_summarize
 from langchain_core.messages import HumanMessage
+import asyncio
 
 # initialize memory
 memory = MemorySaver()
@@ -24,15 +25,17 @@ workFlow.add_edge('summarize_conversation', END)
 
 graph = workFlow.compile(checkpointer = memory)
 
-while True :
-    userInput = input('Enter prompt : ')
-    if userInput == 'q' :
-        break
+async def main():
+    while True :
+        userInput = input('Enter prompt : ')
+        if userInput == 'q' :
+            break
 
-    res = graph.stream({"messages" : [HumanMessage( content = userInput )]}, config = config, stream_mode="updates")
+        async for event in graph.astream_events({"messages" : [HumanMessage( content = userInput )]}, config = config, version="v1"):
+            if event['event'] == 'on_chain_stream' and event['name'] == 'conversation' :
+                for m in event['data']['chunk']['messages']:
+                    print(m.content)
 
-    for m in res:
-        for x in m['conversation']['messages']:
-            print(x.content)
-            print('\n')
+        
     
+asyncio.run(main())
